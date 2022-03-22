@@ -1,33 +1,35 @@
-﻿using Quartz;
+using Quartz;
 using Quartz.Impl.Matchers;
 using Quartz.Spi;
 
-using ScheduleJobs.WebAPI.Jobs.Models;
-using ScheduleJobs.WebAPI.Repository;
+using ScheduleJobs.Worker.Jobs.Models;
+using ScheduleJobs.Worker.Repository;
 
-namespace ScheduleJobs.WebAPI.Jobs.Schedular
+namespace ScheduleJobs.Worker
 {
-    public class JobSchedular : IHostedService
+    public class Worker : BackgroundService
     {
         public IScheduler Scheduler { get; set; }
         private readonly IJobFactory _jobFactory;
         private readonly ISchedulerFactory _schedulerFactory;
         private readonly IJobRepository _jobRepository;
         private CancellationToken _cancellationToken;
+        private readonly ILogger<Worker> _logger;
 
-        public JobSchedular(ISchedulerFactory schedulerFactory, IJobFactory jobFactory, IJobRepository jobRepository)
+        public Worker(ISchedulerFactory schedulerFactory, IJobFactory jobFactory, IJobRepository jobRepository, ILogger<Worker> logger)
         {
             _jobFactory = jobFactory;
             _schedulerFactory = schedulerFactory;
             _jobRepository = jobRepository;
+            _logger = logger;
         }
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        protected override async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
 
             //Creating Schdeular
-            Scheduler = await _schedulerFactory.GetScheduler();
+            Scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
             Scheduler.JobFactory = _jobFactory;
 
             var timer = new System.Timers.Timer(5000);
@@ -41,7 +43,7 @@ namespace ScheduleJobs.WebAPI.Jobs.Schedular
         {
             List<JobMetadata> jobs = _jobRepository.GetAsync().Result;
 
-            foreach(var jobMetadata in jobs)
+            foreach (var jobMetadata in jobs)
             {
                 if (!JobExists(jobMetadata.JobId))
                 {
@@ -50,7 +52,6 @@ namespace ScheduleJobs.WebAPI.Jobs.Schedular
                     Scheduler.ScheduleJob(jobDetail, trigger, _cancellationToken).GetAwaiter();
                 }
             }
-            
         }
 
         private bool JobExists(string id)
@@ -58,12 +59,12 @@ namespace ScheduleJobs.WebAPI.Jobs.Schedular
             bool hasJob = false;
             var jobGroups = Scheduler.GetJobGroupNames().Result;
 
-            foreach(var group in jobGroups)
+            foreach (var group in jobGroups)
             {
                 var groupMatcher = GroupMatcher<JobKey>.GroupContains(group);
                 var jobKeys = Scheduler.GetJobKeys(groupMatcher).Result;
 
-                if(jobKeys.FirstOrDefault(j => j.Name == id) is not null)
+                if (jobKeys.FirstOrDefault(j => j.Name == id) is not null)
                 {
                     hasJob = true;
                     break;
@@ -73,7 +74,7 @@ namespace ScheduleJobs.WebAPI.Jobs.Schedular
             return hasJob;
         }
 
-        private ITrigger CreateTrigger(JobMetadata jobMetadata)
+        private static ITrigger CreateTrigger(JobMetadata jobMetadata)
         {
             return TriggerBuilder.Create()
                 .WithIdentity(jobMetadata.JobId.ToString())
@@ -82,17 +83,12 @@ namespace ScheduleJobs.WebAPI.Jobs.Schedular
                 .Build();
         }
 
-        private IJobDetail CreateJob(JobMetadata jobMetadata)
+        private static IJobDetail CreateJob(JobMetadata jobMetadata)
         {
             return JobBuilder.Create(jobMetadata.JobType)
                 .WithIdentity(jobMetadata.JobId.ToString())
                 .WithDescription(jobMetadata.JobName)
                 .Build();
-        }
-
-        public async Task StopAsync(CancellationToken cancellationToken)
-        {
-            await Scheduler.Shutdown(cancellationToken);
         }
     }
 }
