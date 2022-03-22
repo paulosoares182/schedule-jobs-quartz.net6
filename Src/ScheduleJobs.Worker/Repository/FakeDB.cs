@@ -1,7 +1,7 @@
-﻿using ScheduleJobs.WebAPI.Jobs;
-using ScheduleJobs.WebAPI.Jobs.Models;
+﻿using ScheduleJobs.Worker.Jobs;
+using ScheduleJobs.Worker.Jobs.Models;
 
-namespace ScheduleJobs.WebAPI.Repository
+namespace ScheduleJobs.Worker.Repository
 {
     public static class FakeDB
     {
