@@ -20,13 +20,13 @@ builder.Services.AddSwaggerGen();
 
 NameValueCollection props = new()
 {
-    ["quartz.threadPool.threadCount"] = "2"
+    ["quartz.threadPool.threadCount"] = builder.Configuration.GetValue<string>("MaxThreadPool")
 };
 
 builder.Services.AddSingleton<IJobFactory, JobFactory>();
 builder.Services.AddSingleton<ISchedulerFactory>(provider => new StdSchedulerFactory(props));
 builder.Services.AddSingleton<MyJob>();
-builder.Services.AddHostedService<JobSchedular>();
+builder.Services.AddHostedService<JobScheduler>();
 
 builder.Services.AddTransient<IJobRepository, JobRepository>();
 
